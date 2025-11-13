@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+
 const User = require('../models/User');
 
 /**
@@ -9,10 +10,7 @@ const protect = async (req, res, next) => {
   let token;
 
   // Verifica se o header Authorization existe e começa com 'Bearer'
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
       // Extrai o token removendo o prefixo 'Bearer '
       token = req.headers.authorization.split(' ')[1];
