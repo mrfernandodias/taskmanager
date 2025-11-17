@@ -189,8 +189,12 @@ const updateTaskStatus = async (req, res) => {
     task.status = req.body.status || task.status;
 
     if (task.status === 'Completed') {
-      task.todoChecklist.forE;
+      task.todoChecklist.forEach((item) => (item.completed = true));
+      task.progress = 100;
     }
+
+    await task.save();
+    res.json({ message: 'Task status updated', task });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -201,8 +205,58 @@ const updateTaskStatus = async (req, res) => {
 // @access  Private
 const updateTaskChecklist = async (req, res) => {
   try {
-    // TODO: implement updateTaskChecklist
+    // 1) Extrair o novo checklist do body da requisição
+    const { todoChecklist } = req.body;
+
+    // 2) Buscar a task pelo ID da URL
+    const task = await Task.findById(req.params.id);
+
+    // 3) Verificar se a task existe
+    if (!task) return res.status(404).json({ message: 'Task not found' });
+
+    // 4) Autorização: verificar se o usuário está na lista assignedTo OU se é admin
+    //    includes() verifica se o _id do usuário logado está no array assignedTo
+    if (!task.assignedTo.includes(req.user._id) && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to update checklist' });
+    }
+
+    // 5) Substituir o checklist antigo pelo novo (recebido do frontend)
+    task.todoChecklist = todoChecklist;
+
+    // 6) Calcular progresso automaticamente baseado no checklist
+    //    - Conta quantos itens têm completed = true
+    const completedCount = task.todoChecklist.filter((item) => item.completed).length;
+    //    - Total de itens no checklist
+    const totalItems = task.todoChecklist.length;
+    //    - Calcula percentual de conclusão (arredondado)
+    task.progress = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
+
+    // 7) Auto-atualizar o status da task baseado no progresso
+    //    - 100%: marca como Completed
+    if (task.progress === 100) {
+      task.status = 'Completed';
+      //    - Entre 1% e 99%: marca como In Progress
+    } else if (task.progress > 0) {
+      task.status = 'In Progress';
+      //    - 0%: marca como Pending
+    } else {
+      task.status = 'Pending';
+    }
+
+    // 8) Salvar as mudanças no banco (todoChecklist, progress, status)
+    await task.save();
+
+    // 9) Buscar a task atualizada com populate para retornar dados completos dos usuários
+    //    (para o frontend ter name, email, profileImageUrl dos assignedTo)
+    const updatedTask = await Task.findById(req.params.id).populate(
+      'assignedTo',
+      'name email profileImageUrl'
+    );
+
+    // 10) Responder com a task completa e atualizada
+    res.json({ message: 'Task checklist updated', task: updatedTask });
   } catch (error) {
+    // 11) Tratamento de erros: erro genérico do servidor
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -212,8 +266,107 @@ const updateTaskChecklist = async (req, res) => {
 // @access  Private
 const getDashboardData = async (req, res) => {
   try {
-    // TODO: implement getDashboardData
+    // ========== SEÇÃO 1: ESTATÍSTICAS BÁSICAS ==========
+
+    // 1) Contar total de tasks no sistema
+    const totalTasks = await Task.countDocuments();
+
+    // 2) Contar tasks com status Pending
+    const pendingTasks = await Task.countDocuments({ status: 'Pending' });
+
+    // 3) Contar tasks com status Completed
+    const completedTasks = await Task.countDocuments({ status: 'Completed' });
+
+    // 4) Contar tasks atrasadas (overdue):
+    //    - Status diferente de 'Completed' ($ne = not equal)
+    //    - dueDate menor que a data atual ($lt = less than)
+    const overdueTasks = await Task.countDocuments({
+      status: { $ne: 'Completed' },
+      dueDate: { $lt: new Date() },
+    });
+
+    // ========== SEÇÃO 2: DISTRIBUIÇÃO POR STATUS ==========
+
+    // 5) Definir todos os status possíveis para garantir que apareçam no gráfico
+    //    mesmo quando a contagem for zero
+    const taskStatuses = ['Pending', 'In Progress', 'Completed'];
+
+    // 6) Usar aggregation para agrupar tasks por status e contar
+    //    $group: agrupa documentos por um campo (_id: '$status')
+    //    $sum: 1 conta quantos documentos existem em cada grupo
+    const taskDistributionRaw = await Task.aggregate([
+      {
+        $group: {
+          _id: '$status', // agrupa pelo campo 'status'
+          count: { $sum: 1 }, // conta documentos em cada grupo
+        },
+      },
+    ]);
+
+    // 7) Transformar o resultado do aggregate em um objeto mais amigável
+    //    - Garante que todos os status apareçam (mesmo com count = 0)
+    //    - Remove espaços do nome do status para usar como chave (ex: "In Progress" → "InProgress")
+    const taskDistribution = taskStatuses.reduce((acc, status) => {
+      const formattedKey = status.replace(/\s+/g, ''); // remove espaços
+      // Busca o count do aggregate, ou usa 0 se não encontrou
+      acc[formattedKey] = taskDistributionRaw.find((item) => item._id === status)?.count || 0;
+      return acc;
+    }, {});
+
+    // 8) Adicionar contagem total no mesmo objeto
+    taskDistribution['All'] = totalTasks;
+
+    // ========== SEÇÃO 3: DISTRIBUIÇÃO POR PRIORIDADE ==========
+
+    // 9) Definir todos os níveis de prioridade possíveis
+    const taskPriorities = ['Low', 'Medium', 'High'];
+
+    // 10) Usar aggregation para agrupar tasks por prioridade
+    const taskPriorityLevelsRaw = await Task.aggregate([
+      {
+        $group: {
+          _id: '$priority', // agrupa pelo campo 'priority'
+          count: { $sum: 1 }, // conta documentos em cada grupo
+        },
+      },
+    ]);
+
+    // 11) Transformar resultado em objeto, garantindo todas as prioridades apareçam
+    const taskPriorityLevels = taskPriorities.reduce((acc, priority) => {
+      // Busca o count do aggregate, ou usa 0 se não encontrou
+      acc[priority] = taskPriorityLevelsRaw.find((item) => item._id === priority)?.count || 0;
+      return acc;
+    }, {});
+
+    // ========== SEÇÃO 4: TASKS RECENTES ==========
+
+    // 12) Buscar as 10 tasks mais recentes
+    //     - sort({ createdAt: -1 }): ordena por data de criação, decrescente (mais recentes primeiro)
+    //     - limit(10): pega apenas 10 resultados
+    //     - select(): projeta apenas os campos necessários (economia de dados)
+    const recentTasks = await Task.find()
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select('title status priority dueDate createdAt');
+
+    // ========== RESPOSTA FINAL ==========
+
+    // 13) Montar objeto de resposta estruturado em seções
+    res.status(200).json({
+      statistics: {
+        totalTasks,
+        pendingTasks,
+        completedTasks,
+        overdueTasks,
+      },
+      charts: {
+        taskDistribution, // objeto com contagens por status
+        taskPriorityLevels, // objeto com contagens por prioridade
+      },
+      recentTasks, // array com as 10 tasks mais recentes
+    });
   } catch (error) {
+    // 14) Tratamento de erros: erro genérico do servidor
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -223,8 +376,96 @@ const getDashboardData = async (req, res) => {
 // @access  Private
 const getUserDashboardData = async (req, res) => {
   try {
-    // TODO: implement getUserDashboardData
+    // 1) Pegar o ID do usuário logado (vem do middleware de autenticação)
+    const userId = req.user._id;
+
+    // ========== SEÇÃO 1: ESTATÍSTICAS BÁSICAS (SOMENTE TASKS DO USUÁRIO) ==========
+
+    // 2) Contar total de tasks atribuídas ao usuário
+    const totalTasks = await Task.countDocuments({ assignedTo: userId });
+
+    // 3) Contar tasks Pending do usuário
+    const pendingTasks = await Task.countDocuments({ assignedTo: userId, status: 'Pending' });
+
+    // 4) Contar tasks Completed do usuário
+    const completedTasks = await Task.countDocuments({ assignedTo: userId, status: 'Completed' });
+
+    // 5) Contar tasks atrasadas do usuário (não completadas e com dueDate no passado)
+    const overdueTasks = await Task.countDocuments({
+      assignedTo: userId,
+      status: { $ne: 'Completed' },
+      dueDate: { $lt: new Date() },
+    });
+
+    // ========== SEÇÃO 2: DISTRIBUIÇÃO POR STATUS (SOMENTE TASKS DO USUÁRIO) ==========
+
+    // 6) Definir todos os status possíveis
+    const taskStatuses = ['Pending', 'In Progress', 'Completed'];
+
+    // 7) Usar aggregation para contar tasks por status
+    //    $match: filtra apenas tasks do usuário (assignedTo contém userId)
+    //    $group: agrupa por status e conta
+    const taskDistributionRaw = await Task.aggregate([
+      { $match: { assignedTo: userId } }, // filtra pelo usuário
+      { $group: { _id: '$status', count: { $sum: 1 } } }, // agrupa e conta
+    ]);
+
+    // 8) Transformar em objeto com todos os status (mesmo os zerados)
+    const taskDistribution = taskStatuses.reduce((acc, status) => {
+      const formattedKey = status.replace(/\s+/g, ''); // remove espaços
+      acc[formattedKey] = taskDistributionRaw.find((item) => item._id === status)?.count || 0;
+      return acc;
+    }, {});
+    // 9) Adicionar contagem total
+    taskDistribution['All'] = totalTasks;
+
+    // ========== SEÇÃO 3: DISTRIBUIÇÃO POR PRIORIDADE (SOMENTE TASKS DO USUÁRIO) ==========
+
+    // 10) Definir todos os níveis de prioridade possíveis
+    const taskPriorities = ['Low', 'Medium', 'High'];
+
+    // 11) Usar aggregation para contar tasks por prioridade
+    const taskPriorityLevelsRaw = await Task.aggregate([
+      { $match: { assignedTo: userId } }, // filtra pelo usuário
+      { $group: { _id: '$priority', count: { $sum: 1 } } }, // agrupa e conta
+    ]);
+
+    // 12) Transformar em objeto com todas as prioridades (mesmo as zeradas)
+    const taskPriorityLevels = taskPriorities.reduce((acc, priority) => {
+      acc[priority] = taskPriorityLevelsRaw.find((item) => item._id === priority)?.count || 0;
+      return acc; // retorna o acumulador
+    }, {}); // objeto vazio como valor inicial
+
+    // ========== SEÇÃO 4: TASKS RECENTES DO USUÁRIO ==========
+
+    // 13) Buscar as 10 tasks mais recentes do usuário
+    //     - find({ assignedTo: userId }): filtra apenas tasks do usuário
+    //     - sort({ createdAt: -1 }): ordena por data de criação, decrescente (mais recentes primeiro)
+    //     - limit(10): pega apenas 10 resultados
+    //     - select(): projeta apenas os campos necessários (economia de dados)
+    const recentTasks = await Task.find({ assignedTo: userId })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select('title status priority dueDate createdAt');
+
+    // ========== RESPOSTA FINAL ==========
+
+    // 14) Retornar dados estruturados do dashboard do usuário
+    return res.status(200).json({
+      statistics: {
+        totalTasks,
+        pendingTasks,
+        completedTasks,
+        overdueTasks,
+      },
+      charts: {
+        taskDistribution, // objeto com contagens por status
+        taskPriorityLevels, // objeto com contagens por prioridade
+      },
+      recentTasks, // array com as 10 tasks mais recentes
+    });
   } catch (error) {
+    // 15) Tratamento de erros: erro genérico do servidor
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
