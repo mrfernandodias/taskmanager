@@ -79,26 +79,41 @@ const exportTasksReport = async (req, res) => {
 // @access  Private (Admin)
 const exportUsersReport = async (req, res) => {
   try {
+    // 1) Buscar todos os usuários do sistema
+    //    select('name email _id'): traz apenas os campos necessários
+    //    lean(): retorna objetos JS puros (sem métodos Mongoose), mais leves
     const users = await User.find().select('name email _id').lean();
+
+    // 2) Buscar todas as tasks com populate dos usuários atribuídos
+    //    populate traz name, email e _id de cada usuário em assignedTo
     const userTasks = await Task.find().populate('assignedTo', 'name email _id');
 
+    // 3) Criar mapa (objeto) para agregar dados de cada usuário
+    //    Chave: _id do usuário | Valor: objeto com contadores de tarefas
     const userTaskMap = {};
     users.forEach((user) => {
       userTaskMap[user._id] = {
         name: user.name,
         email: user.email,
-        taskCount: 0,
-        pendingTasks: 0,
-        inProgressTasks: 0,
-        completedTasks: 0,
+        taskCount: 0, // total de tarefas atribuídas
+        pendingTasks: 0, // tarefas Pending
+        inProgressTasks: 0, // tarefas In Progress
+        completedTasks: 0, // tarefas Completed
       };
     });
 
+    // 4) Iterar sobre todas as tasks para contar por status e usuário
+    //    Uma task pode ter múltiplos usuários em assignedTo (array)
     userTasks.forEach((task) => {
       if (task.assignedTo) {
+        // 5) Para cada usuário atribuído nesta task
         task.assignedTo.forEach((assignedUser) => {
+          // 6) Verificar se o usuário existe no mapa (proteção contra dados órfãos)
           if (userTaskMap[assignedUser._id]) {
+            // 7) Incrementar contador total
             userTaskMap[assignedUser._id].taskCount += 1;
+
+            // 8) Incrementar contador específico por status
             if (task.status === 'Pending') {
               userTaskMap[assignedUser._id].pendingTasks += 1;
             } else if (task.status === 'In Progress') {
@@ -110,7 +125,49 @@ const exportUsersReport = async (req, res) => {
         });
       }
     });
+
+    // 9) Criar workbook (arquivo Excel)
+    const workbook = new excelJS.Workbook();
+
+    // 10) Adicionar worksheet (aba/planilha)
+    const worksheet = workbook.addWorksheet('User Task Report');
+
+    // 11) Definir colunas da planilha
+    //     header: nome da coluna visível
+    //     key: campo do objeto que será mapeado
+    //     width: largura da coluna em caracteres
+    worksheet.columns = [
+      { header: 'User Name', key: 'name', width: 30 },
+      { header: 'Email', key: 'email', width: 40 },
+      { header: 'Total Assigned Tasks', key: 'taskCount', width: 20 },
+      { header: 'Pending Tasks', key: 'pendingTasks', width: 20 },
+      { header: 'In Progress Tasks', key: 'inProgressTasks', width: 20 },
+      { header: 'Completed Tasks', key: 'completedTasks', width: 20 },
+    ];
+
+    // 12) Adicionar linhas: converte o mapa (objeto) em array de valores e itera
+    //     Object.values() extrai apenas os valores, ignorando as chaves (_id)
+    Object.values(userTaskMap).forEach((user) => {
+      worksheet.addRow(user);
+    });
+
+    // 13) Configurar headers HTTP para download
+    //     Content-Type: especifica formato Excel (Office Open XML)
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    //     Content-Disposition: indica download (attachment) e nome do arquivo
+    res.setHeader('Content-Disposition', 'attachment; filename="user_report.xlsx"');
+
+    // 14) Escrever workbook no stream de resposta (res)
+    //     write() é assíncrono; retorna Promise
+    //     Após write terminar, finaliza a resposta com res.end()
+    return workbook.xlsx.write(res).then(() => {
+      res.end();
+    });
   } catch (error) {
+    // 15) Tratamento de erros: retorna JSON com mensagem
     res.status(500).json({
       message: 'Error to export users',
       error: error.message,
