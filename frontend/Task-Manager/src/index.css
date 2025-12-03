@@ -23,7 +23,7 @@
 }
 
 .btn-primary {
-  @apply w-full text-sm font-medium text-white bg-primary shadow-lg shadow-purple-600/5 p-[10px] rounded-md hover:bg-blue-600/15 hover:text-blue-600 cursor-pointer;
+  @apply w-full text-sm font-medium text-white bg-primary shadow-lg shadow-purple-600/5 p-2.5 rounded-md hover:bg-blue-600/15 hover:text-blue-600 cursor-pointer;
 }
 
 .card {

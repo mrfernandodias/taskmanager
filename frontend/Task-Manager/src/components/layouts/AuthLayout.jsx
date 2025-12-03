@@ -11,7 +11,7 @@ const AuthLayout = ({ children }) => {
         className={clsx(
           'hidden md:flex w-[40vw] h-screen',
           'items-center justify-center overflow-hidden p-8',
-          'bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700'
+          'bg-linear-to-br from-blue-600 via-purple-600 to-indigo-700'
         )}
       >
         <div className="text-center text-white space-y-6">
