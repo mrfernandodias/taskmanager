@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { LuFileSpreadsheet } from 'react-icons/lu';
 import { useNavigate } from 'react-router-dom';
 import TaskCard from '../../components/Cards/TaskCard';
@@ -6,6 +7,7 @@ import DashboardLayout from '../../components/layouts/DashboardLayout';
 import TaskStatusTabs from '../../components/TaskStatusTabs';
 import { API_PATHS } from '../../utils/apiPath';
 import axiosInstance from '../../utils/axiosInstance';
+import { downloadBlob } from '../../utils/helper';
 
 const ManageTasks = () => {
   const [allTasks, setAllTasks] = useState([]);
@@ -59,9 +61,25 @@ const ManageTasks = () => {
     navigate('/admin/create-task', { state: { taskId } });
   };
 
-  // Baixar relatório de tarefas (a implementar)
+  // Baixar relatório de tarefas
   const handleDownloadReport = async () => {
-    console.log('Download Report has clicked');
+    try {
+      const response = await axiosInstance.get(API_PATHS.REPORTS.EXPORT_TASKS, {
+        responseType: 'blob',
+      });
+
+      // Usa helper reutilizável para download
+      const success = downloadBlob(response.data, 'tasks_report.xlsx');
+
+      if (success) {
+        toast.success('Tasks report downloaded successfully!');
+      } else {
+        toast.error('Error downloading report');
+      }
+    } catch (error) {
+      console.error('Error downloading tasks report:', error);
+      toast.error('Failed to download tasks report. Please, try again');
+    }
   };
 
   // Recarregar tarefas sempre que o filtro de status mudar

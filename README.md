@@ -385,33 +385,80 @@ taskmanager/
 
 > 🚧 **Under Development**
 >
-> This section will be filled with upcoming features and planned improvements for the project.
+> This section tracks upcoming features and improvements for the project.
 
-### Planned Features
+### 🎯 Planned Features
 
-- [ ] Real-time notifications system
-- [ ] Advanced filters and search
+#### User Management Enhancements
+- [ ] Edit user profile (name, email, avatar)
+- [ ] Change user role (Admin/User)
+- [ ] Delete/deactivate users
+- [ ] User statistics dashboard
+- [ ] Bulk user actions
+- [ ] User search and filtering
+
+#### Task Management Improvements
+- [ ] Advanced filters (priority, assignee, date range)
+- [ ] Search functionality
 - [ ] Drag & drop to reorder tasks
-- [ ] File attachments (not just links)
+- [ ] Bulk task operations
+- [ ] Task templates
+- [ ] Recurring tasks
+
+#### Reports & Analytics
+- [x] Export users report (Excel) ✅
+- [x] Export tasks report (Excel) ✅
+- [ ] Export to PDF format
+- [ ] Custom report builder
+- [ ] Analytics dashboard
+- [ ] Performance metrics
+
+#### Collaboration Features
+- [ ] Real-time notifications system
 - [ ] Task comments system
-- [ ] Change history
-- [ ] Report exports (PDF/Excel)
+- [ ] @mentions in comments
+- [ ] Activity feed/timeline
+- [ ] Change history tracking
+- [ ] File attachments (not just links)
+
+#### User Experience
 - [ ] Complete dark mode
-- [ ] Unit and E2E testing
+- [ ] Mobile app (React Native)
 - [ ] PWA (Progressive Web App)
-- [ ] Project dockerization
-- [ ] CI/CD Pipeline
+- [ ] Keyboard shortcuts
+- [ ] Accessibility improvements (ARIA labels)
+- [ ] Internationalization (i18n - PT-BR, EN)
 
-### Technical Improvements
+### 🔧 Technical Improvements
 
+#### Performance
 - [ ] Implement React Query for caching
-- [ ] Add WebSockets (Socket.io)
-- [ ] Performance optimization
-- [ ] Accessibility (ARIA labels)
-- [ ] Internationalization (i18n)
-- [ ] Backend rate limiting
-- [ ] Structured logging
-- [ ] Monitoring and metrics
+- [ ] useMemo/useCallback optimization
+- [ ] Code splitting and lazy loading
+- [ ] Image optimization
+- [ ] Database indexing
+
+#### Architecture
+- [ ] Add WebSockets (Socket.io) for real-time updates
+- [ ] Implement Redis for session management
+- [ ] API rate limiting
+- [ ] Request throttling/debouncing
+
+#### Quality & Security
+- [ ] Unit tests (Jest + React Testing Library)
+- [ ] E2E tests (Playwright/Cypress)
+- [ ] Integration tests
+- [ ] Security audit
+- [ ] Input sanitization
+- [ ] CSRF protection
+
+#### DevOps
+- [ ] Project dockerization
+- [ ] CI/CD Pipeline (GitHub Actions)
+- [ ] Automated deployments
+- [ ] Structured logging (Winston)
+- [ ] Monitoring and metrics (Prometheus/Grafana)
+- [ ] Error tracking (Sentry)
 
 ---
 

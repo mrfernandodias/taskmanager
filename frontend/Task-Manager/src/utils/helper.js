@@ -74,3 +74,37 @@ export const addThousandsSeparator = (num) => {
 
   return fractionalPart ? `${formattedInteger}.${fractionalPart}` : formattedInteger;
 };
+
+/**
+ * Baixa um arquivo blob (Excel, PDF, etc) do servidor
+ * @param {Blob} blobData - Dados do blob retornados pela API
+ * @param {string} fileName - Nome do arquivo para download (ex: 'report.xlsx')
+ *
+ * Exemplo de uso:
+ * const response = await axios.get('/api/report', { responseType: 'blob' });
+ * downloadBlob(response.data, 'users-report.xlsx');
+ */
+export const downloadBlob = (blobData, fileName) => {
+  try {
+    // Criar URL temporário para o blob
+    const url = window.URL.createObjectURL(new Blob([blobData]));
+
+    // Criar elemento <a> invisível
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+
+    // Adicionar ao DOM, clicar e remover
+    document.body.appendChild(link);
+    link.click();
+    link.parentNode.removeChild(link);
+
+    // Limpar URL temporário
+    window.URL.revokeObjectURL(url);
+
+    return true;
+  } catch (error) {
+    console.error('Error downloading file:', error);
+    return false;
+  }
+};
